@@ -101,7 +101,7 @@ Access each Portainer instance and create admin accounts:
 docker exec $(docker ps -q -f name=jenkins) cat /var/jenkins_home/secrets/initialAdminPassword
 ```
 
-2. **Access Jenkins**: http://localhost:8080
+2. **Access Jenkins**: http://172.22.226.17:8080/jenkins (replace with your WSL IP)
 
 3. **Complete setup wizard:**
 

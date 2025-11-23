@@ -8,8 +8,11 @@ Complete guide for setting up and configuring Jenkins for the Docker Swarm Lab C
 
 After running `./scripts/init-all.sh`, Jenkins will be available at:
 
-- **URL**: http://localhost:8080
+- **URL**: http://172.22.226.17:8080/jenkins (replace with your WSL IP)
 - **Wait time**: 2-3 minutes for initial startup
+
+> **Note:** Jenkins runs with `--prefix=/jenkins` context path.
+> **WSL2 Users:** Replace `172.22.226.17` with your WSL IP from `hostname -I | awk '{print $1}'`
 
 ### 2. Get Initial Admin Password
 
@@ -33,7 +36,7 @@ Copy the password (40-character alphanumeric string).
    - Password: (choose a strong password)
    - Full name: `Admin`
    - Email: `admin@localhost`
-5. **Jenkins URL**: Keep default `http://localhost:8080/`
+5. **Jenkins URL**: Keep default or use `http://172.22.226.17:8080/jenkins`
 6. Click "Start using Jenkins"
 
 ## Plugin Configuration
