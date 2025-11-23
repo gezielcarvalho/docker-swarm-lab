@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  portainer:
+    image: portainer/portainer-ce:latest
+    command: -H unix:///var/run/docker.sock
+    ports:
+      - "9002:9000"
+      - "9445:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data_prod:/data
+    networks:
+      - prod-monitoring
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+      labels:
+        - "environment=prod"
+        - "service=portainer"
+
+networks:
+  prod-monitoring:
+    external: true
+
+volumes:
+  portainer_data_prod:
+    external: true

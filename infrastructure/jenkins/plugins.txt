@@ -1,0 +1,11 @@
+docker-workflow:latest
+docker-plugin:latest
+blueocean:latest
+git:latest
+workflow-aggregator:latest
+pipeline-stage-view:latest
+credentials-binding:latest
+ssh-agent:latest
+nodejs:latest
+ansicolor:latest
+timestamper:latest

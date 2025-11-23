@@ -1,0 +1,38 @@
+{
+  "name": "docker-swarm-lab-app",
+  "version": "1.0.0",
+  "description": "Sample Node.js application for Docker Swarm CI/CD simulation",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "jest --coverage --testPathPattern=tests/unit",
+    "test:integration": "jest --testPathPattern=tests/integration --runInBand",
+    "test:all": "jest --coverage",
+    "lint": "eslint src/ tests/"
+  },
+  "keywords": [
+    "docker",
+    "swarm",
+    "nodejs",
+    "express",
+    "ci-cd"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "morgan": "^1.10.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.0.2",
+    "supertest": "^6.3.3",
+    "eslint": "^8.55.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

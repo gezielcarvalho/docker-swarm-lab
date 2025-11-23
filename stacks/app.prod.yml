@@ -1,0 +1,64 @@
+version: "3.8"
+
+services:
+  app:
+    image: localhost:5000/swarm-lab-app:${VERSION:-latest}
+    ports:
+      - "3002:3000"
+    networks:
+      - prod-frontend
+      - prod-backend
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - APP_VERSION=${VERSION:-1.0.0}
+      - LOG_LEVEL=error
+    deploy:
+      mode: replicated
+      replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 15s
+        failure_action: rollback
+        monitor: 90s
+        max_failure_ratio: 0.2
+        order: start-first
+      rollback_config:
+        parallelism: 1
+        delay: 10s
+        monitor: 60s
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 5
+        window: 180s
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 768M
+        reservations:
+          cpus: "0.5"
+          memory: 512M
+      labels:
+        - "environment=prod"
+        - "service=app"
+        - "version=${VERSION:-1.0.0}"
+        - "criticality=high"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "require('http').get('http://localhost:3000/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})",
+        ]
+      interval: 20s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+networks:
+  prod-frontend:
+    external: true
+  prod-backend:
+    external: true

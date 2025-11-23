@@ -1,0 +1,292 @@
+pipeline {
+    agent any
+    
+    environment {
+        REGISTRY = 'localhost:5000'
+        IMAGE_NAME = 'swarm-lab-app'
+        GIT_COMMIT_SHORT = sh(script: "git rev-parse --short HEAD", returnStdout: true).trim()
+        VERSION = "${env.BUILD_NUMBER}-${GIT_COMMIT_SHORT}"
+    }
+    
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timestamps()
+        ansiColor('xterm')
+    }
+    
+    stages {
+        stage('Checkout') {
+            steps {
+                echo '======================================'
+                echo 'Stage 1: Checkout Source Code'
+                echo '======================================'
+                checkout scm
+                sh 'git log -1 --pretty=format:"%h - %an: %s"'
+            }
+        }
+        
+        stage('Install Dependencies') {
+            steps {
+                echo '======================================'
+                echo 'Stage 2: Install Node.js Dependencies'
+                echo '======================================'
+                dir('app') {
+                    sh 'npm ci'
+                    sh 'npm list --depth=0'
+                }
+            }
+        }
+        
+        stage('Lint') {
+            steps {
+                echo '======================================'
+                echo 'Stage 3: Code Linting'
+                echo '======================================'
+                dir('app') {
+                    sh 'npm run lint || true'
+                }
+            }
+        }
+        
+        stage('Unit Tests') {
+            steps {
+                echo '======================================'
+                echo 'Stage 4: Run Unit Tests'
+                echo '======================================'
+                dir('app') {
+                    sh 'npm test'
+                }
+            }
+            post {
+                always {
+                    dir('app') {
+                        // Archive test results
+                        junit testResults: 'coverage/junit.xml', allowEmptyResults: true
+                        // Publish coverage report
+                        publishHTML target: [
+                            allowMissing: true,
+                            alwaysLinkToLastBuild: false,
+                            keepAll: true,
+                            reportDir: 'coverage/lcov-report',
+                            reportFiles: 'index.html',
+                            reportName: 'Coverage Report'
+                        ]
+                    }
+                }
+            }
+        }
+        
+        stage('Integration Tests') {
+            steps {
+                echo '======================================'
+                echo 'Stage 5: Run Integration Tests'
+                echo '======================================'
+                dir('app') {
+                    sh '''
+                        # Build test image
+                        docker build -t ${IMAGE_NAME}:test .
+                        
+                        # Run integration tests in container
+                        docker run --rm ${IMAGE_NAME}:test npm run test:integration
+                        
+                        # Cleanup test image
+                        docker rmi ${IMAGE_NAME}:test
+                    '''
+                }
+            }
+        }
+        
+        stage('Build Docker Image') {
+            steps {
+                echo '======================================'
+                echo 'Stage 6: Build Docker Image'
+                echo '======================================'
+                dir('app') {
+                    sh """
+                        docker build \
+                            -t ${REGISTRY}/${IMAGE_NAME}:${VERSION} \
+                            -t ${REGISTRY}/${IMAGE_NAME}:latest \
+                            --build-arg BUILD_DATE=\$(date -u +'%Y-%m-%dT%H:%M:%SZ') \
+                            --build-arg VCS_REF=${GIT_COMMIT_SHORT} \
+                            --build-arg VERSION=${VERSION} \
+                            .
+                    """
+                }
+            }
+        }
+        
+        stage('Push to Registry') {
+            steps {
+                echo '======================================'
+                echo 'Stage 7: Push Image to Registry'
+                echo '======================================'
+                sh """
+                    docker push ${REGISTRY}/${IMAGE_NAME}:${VERSION}
+                    docker push ${REGISTRY}/${IMAGE_NAME}:latest
+                """
+            }
+        }
+        
+        stage('Deploy to DEV') {
+            steps {
+                echo '======================================'
+                echo 'Stage 8: Deploy to DEV Environment'
+                echo '======================================'
+                sh """
+                    VERSION=${VERSION} docker stack deploy \
+                        -c stacks/app.dev.yml \
+                        --with-registry-auth \
+                        app-dev
+                """
+                echo '✓ Deployed to DEV'
+            }
+        }
+        
+        stage('Verify DEV Deployment') {
+            steps {
+                echo '======================================'
+                echo 'Stage 9: Verify DEV Deployment'
+                echo '======================================'
+                script {
+                    retry(5) {
+                        sleep 10
+                        sh 'curl -f http://localhost:3000/health || exit 1'
+                    }
+                }
+                echo '✓ DEV health check passed'
+            }
+        }
+        
+        stage('Approve QA Deployment') {
+            steps {
+                echo '======================================'
+                echo 'Stage 10: Approval Gate for QA'
+                echo '======================================'
+                script {
+                    timeout(time: 24, unit: 'HOURS') {
+                        input message: 'Deploy to QA environment?', 
+                              ok: 'Deploy',
+                              submitter: 'admin'
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to QA') {
+            steps {
+                echo '======================================'
+                echo 'Stage 11: Deploy to QA Environment'
+                echo '======================================'
+                sh """
+                    VERSION=${VERSION} docker stack deploy \
+                        -c stacks/app.qa.yml \
+                        --with-registry-auth \
+                        app-qa
+                """
+                echo '✓ Deployed to QA'
+            }
+        }
+        
+        stage('Verify QA Deployment') {
+            steps {
+                echo '======================================'
+                echo 'Stage 12: Verify QA Deployment'
+                echo '======================================'
+                script {
+                    retry(5) {
+                        sleep 10
+                        sh 'curl -f http://localhost:3001/health || exit 1'
+                    }
+                }
+                echo '✓ QA health check passed'
+            }
+        }
+        
+        stage('Approve PROD Deployment') {
+            steps {
+                echo '======================================'
+                echo 'Stage 13: Approval Gate for PROD'
+                echo '======================================'
+                script {
+                    timeout(time: 48, unit: 'HOURS') {
+                        input message: 'Deploy to PRODUCTION environment?', 
+                              ok: 'Deploy to Production',
+                              submitter: 'admin'
+                    }
+                }
+            }
+        }
+        
+        stage('Deploy to PROD') {
+            steps {
+                echo '======================================'
+                echo 'Stage 14: Deploy to PROD Environment'
+                echo '======================================'
+                sh """
+                    VERSION=${VERSION} docker stack deploy \
+                        -c stacks/app.prod.yml \
+                        --with-registry-auth \
+                        app-prod
+                """
+                echo '✓ Deployed to PROD'
+            }
+        }
+        
+        stage('Verify PROD Deployment') {
+            steps {
+                echo '======================================'
+                echo 'Stage 15: Verify PROD Deployment'
+                echo '======================================'
+                script {
+                    retry(10) {
+                        sleep 15
+                        sh 'curl -f http://localhost:3002/health || exit 1'
+                    }
+                }
+                echo '✓ PROD health check passed'
+            }
+        }
+        
+        stage('Smoke Tests') {
+            steps {
+                echo '======================================'
+                echo 'Stage 16: Production Smoke Tests'
+                echo '======================================'
+                sh '''
+                    # Test health endpoint
+                    curl -f http://localhost:3002/health
+                    
+                    # Test info endpoint
+                    curl -f http://localhost:3002/api/info
+                    
+                    # Test items endpoint
+                    curl -f http://localhost:3002/api/items
+                    
+                    echo "✓ All smoke tests passed"
+                '''
+            }
+        }
+    }
+    
+    post {
+        success {
+            echo '========================================='
+            echo '🎉 Pipeline Completed Successfully!'
+            echo '========================================='
+            echo "Version ${VERSION} deployed to all environments"
+            echo 'DEV:  http://localhost:3000'
+            echo 'QA:   http://localhost:3001'
+            echo 'PROD: http://localhost:3002'
+        }
+        failure {
+            echo '========================================='
+            echo '❌ Pipeline Failed!'
+            echo '========================================='
+            echo 'Check logs for details'
+        }
+        always {
+            echo 'Cleaning up workspace...'
+            cleanWs()
+        }
+    }
+}

@@ -1,0 +1,57 @@
+version: "3.8"
+
+services:
+  jenkins:
+    image: docker-swarm-lab-jenkins:latest
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - jenkins-network
+      - registry-network
+      - dev-backend
+      - qa-backend
+      - prod-backend
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock
+      - JENKINS_OPTS=--prefix=/jenkins
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+        reservations:
+          cpus: "1"
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+      labels:
+        - "service=jenkins"
+        - "purpose=ci-cd"
+
+networks:
+  jenkins-network:
+    driver: overlay
+    attachable: true
+  registry-network:
+    external: true
+  dev-backend:
+    external: true
+  qa-backend:
+    external: true
+  prod-backend:
+    external: true
+
+volumes:
+  jenkins_home:
+    driver: local
