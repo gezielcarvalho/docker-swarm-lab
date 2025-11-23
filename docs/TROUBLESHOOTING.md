@@ -100,6 +100,35 @@ docker swarm leave --force
 docker swarm init
 ```
 
+### Multiple Network Interfaces Error
+
+**Symptom:** `could not choose an IP address to advertise since this system has multiple addresses on different interfaces`
+
+**Solution:**
+
+This is common in WSL2 environments. The initialization scripts now automatically detect the correct IP address, but if you need to manually specify:
+
+```bash
+# Leave existing swarm if any
+docker swarm leave --force
+
+# Find your IP addresses
+ip -4 addr show
+
+# Initialize with specific IP (use eth0 IP, not lo)
+docker swarm init --advertise-addr 172.22.226.17
+
+# Or just run the updated initialization script
+./infrastructure/swarm/init-dev.sh
+```
+
+The scripts will automatically:
+
+1. Try eth0 interface first
+2. Fall back to docker0 interface
+3. Use first non-loopback IP
+4. Default to 127.0.0.1 if nothing else works
+
 ### Manager Node Issues
 
 **Symptom:** Services not deploying to manager node

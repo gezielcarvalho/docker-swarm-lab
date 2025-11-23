@@ -22,7 +22,26 @@ fi
 
 echo -e "${YELLOW}Step 1: Initializing Docker Swarm (if not already initialized)${NC}"
 if ! docker info | grep -q "Swarm: active"; then
-    docker swarm init
+    # Detect the best IP address to use
+    # Prefer eth0, then docker0, then first available non-loopback interface
+    SWARM_IP=$(ip -4 addr show eth0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+    
+    if [ -z "$SWARM_IP" ]; then
+        SWARM_IP=$(ip -4 addr show docker0 2>/dev/null | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | head -1)
+    fi
+    
+    if [ -z "$SWARM_IP" ]; then
+        # Get first non-loopback IP
+        SWARM_IP=$(ip -4 addr show | grep -oP '(?<=inet\s)\d+(\.\d+){3}' | grep -v '^127\.' | grep -v '^10\.255\.' | head -1)
+    fi
+    
+    if [ -z "$SWARM_IP" ]; then
+        # Fallback to localhost
+        SWARM_IP="127.0.0.1"
+    fi
+    
+    echo "Using IP address: $SWARM_IP"
+    docker swarm init --advertise-addr "$SWARM_IP"
     echo -e "${GREEN}✓ Swarm initialized${NC}"
 else
     echo -e "${GREEN}✓ Swarm already active${NC}"

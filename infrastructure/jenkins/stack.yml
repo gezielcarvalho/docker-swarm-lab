@@ -11,7 +11,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - jenkins-network
-      - registry-network
+      - registry_registry-network
       - dev-backend
       - qa-backend
       - prod-backend
@@ -43,7 +43,7 @@ networks:
   jenkins-network:
     driver: overlay
     attachable: true
-  registry-network:
+  registry_registry-network:
     external: true
   dev-backend:
     external: true
